@@ -25,7 +25,6 @@ const Dashboard = () => {
   // Add this to your existing state
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [isHoveringAudio, setIsHoveringAudio] = useState(null);
-console.log("friends",friends);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
