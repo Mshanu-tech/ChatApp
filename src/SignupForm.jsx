@@ -7,7 +7,7 @@ const SignupForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post('http://localhost:5000/api/auth/signup', form);
+      const res = await axios.post('https://chatappbackend-eg0b.onrender.com/api/auth/signup', form);
       localStorage.setItem('token', res.data.token);
       alert('Signup successful!');
     } catch (err) {

@@ -56,7 +56,7 @@ console.log("friends",friends);
 
         const loadFriends = async () => {
           try {
-            const res = await axios.get(`http://localhost:5000/api/auth/friends/${decoded.userID}`);
+            const res = await axios.get(`https://chatappbackend-eg0b.onrender.com/api/auth/friends/${decoded.userID}`);
             setFriends(res.data);
           } catch (err) {
             console.error('Failed to load friends:', err);
@@ -68,7 +68,7 @@ console.log("friends",friends);
 
         const loadLastMessages = async () => {
           try {
-            const res = await axios.get(`http://localhost:5000/api/auth/last-messages/${decoded.userID}`);
+            const res = await axios.get(`https://chatappbackend-eg0b.onrender.com/api/auth/last-messages/${decoded.userID}`);
             const mapped = {};
             res.data.forEach(msg => {
               const friendID = msg.sender === decoded.userID ? msg.receiver : msg.sender;
@@ -258,7 +258,7 @@ console.log("friends",friends);
                   setChatName(friend.name);
                   sessionStorage.setItem('friend', JSON.stringify(friend));
                   try {
-                    const res = await axios.get(`http://localhost:5000/api/auth/messages/${userID}/${friend.userID}`);
+                    const res = await axios.get(`https://chatappbackend-eg0b.onrender.com/api/auth/messages/${userID}/${friend.userID}`);
                     setMessages(res.data);
                     sessionStorage.setItem('messages', JSON.stringify(res.data));
                   } catch (err) {

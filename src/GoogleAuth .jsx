@@ -14,7 +14,7 @@ const handleGoogleSuccess = async (credentialResponse) => {
   const { email, name, picture, sub } = decoded;
 
   try {
-    const res = await axios.post('http://localhost:5000/api/auth/google', {
+    const res = await axios.post('https://chatappbackend-eg0b.onrender.com/api/auth/google', {
       email,
       name,
       picture,
@@ -41,7 +41,7 @@ const handleGoogleSuccess = async (credentialResponse) => {
 
     try {
       const endpoint = isSignup ? 'signup' : 'login';
-      const res = await axios.post(`http://localhost:5000/api/auth/${endpoint}`, form);
+      const res = await axios.post(`https://chatappbackend-eg0b.onrender.com/api/auth/${endpoint}`, form);
       localStorage.setItem('token', res.data.token);
       navigate('/dashboard');
     } catch (err) {
