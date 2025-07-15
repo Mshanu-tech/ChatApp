@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import axiosInstance from './utils/axiosInstance';
 
 const AuthForm = () => {
   const [isSignup, setIsSignup] = useState(false);
@@ -14,7 +14,7 @@ const handleGoogleSuccess = async (credentialResponse) => {
   const { email, name, picture, sub } = decoded;
 
   try {
-    const res = await axios.post('https://chatappbackend-eg0b.onrender.com/api/auth/google', {
+    const res = await axiosInstance.post('/api/auth/google', {
       email,
       name,
       picture,
@@ -41,7 +41,7 @@ const handleGoogleSuccess = async (credentialResponse) => {
 
     try {
       const endpoint = isSignup ? 'signup' : 'login';
-      const res = await axios.post(`https://chatappbackend-eg0b.onrender.com/api/auth/${endpoint}`, form);
+      const res = await axiosInstance.post(`/api/auth/${endpoint}`, form);
       localStorage.setItem('token', res.data.token);
       navigate('/dashboard');
     } catch (err) {

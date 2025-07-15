@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import axiosInstance from './utils/axiosInstance';
 
 const SignupForm = () => {
   const [form, setForm] = useState({ name: '', email: '', password: '' });
@@ -7,7 +7,7 @@ const SignupForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post('https://chatappbackend-eg0b.onrender.com/api/auth/signup', form);
+      const res = await axiosInstance.post('/api/auth/signup', form);
       localStorage.setItem('token', res.data.token);
       alert('Signup successful!');
     } catch (err) {

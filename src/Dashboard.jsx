@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import InviteFriend from './components/InviteFriend';
 import ChatInvitePopup from './components/ChatInvitePopup';
 import { socket } from './socket';
 import { jwtDecode } from 'jwt-decode';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import axiosInstance from './utils/axiosInstance';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -55,7 +55,7 @@ const Dashboard = () => {
 
         const loadFriends = async () => {
           try {
-            const res = await axios.get(`https://chatappbackend-eg0b.onrender.com/api/auth/friends/${decoded.userID}`);
+            const res = await axiosInstance.get(`/api/auth/friends/${decoded.userID}`);
             setFriends(res.data);
           } catch (err) {
             console.error('Failed to load friends:', err);
@@ -67,7 +67,7 @@ const Dashboard = () => {
 
         const loadLastMessages = async () => {
           try {
-            const res = await axios.get(`https://chatappbackend-eg0b.onrender.com/api/auth/last-messages/${decoded.userID}`);
+            const res = await axiosInstance.get(`/api/auth/last-messages/${decoded.userID}`);
             const mapped = {};
             res.data.forEach(msg => {
               const friendID = msg.sender === decoded.userID ? msg.receiver : msg.sender;
@@ -257,7 +257,7 @@ const Dashboard = () => {
                   setChatName(friend.name);
                   sessionStorage.setItem('friend', JSON.stringify(friend));
                   try {
-                    const res = await axios.get(`https://chatappbackend-eg0b.onrender.com/api/auth/messages/${userID}/${friend.userID}`);
+                    const res = await axiosInstance.get(`/api/auth/messages/${userID}/${friend.userID}`);
                     setMessages(res.data);
                     sessionStorage.setItem('messages', JSON.stringify(res.data));
                   } catch (err) {

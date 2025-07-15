@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import axiosInstance from './utils/axiosInstance';
 
 const LoginForm = () => {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -9,7 +9,7 @@ const LoginForm = () => {
 const handleSubmit = async (e) => {
   e.preventDefault();
   try {
-    const res = await axios.post('https://chatappbackend-eg0b.onrender.com/api/auth/login', form);
+    const res = await axiosInstance.post('/api/auth/login', form);
     const { token, friend, messages, userID, name } = res.data;
 
     localStorage.setItem('token', token);
