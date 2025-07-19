@@ -1,12 +1,10 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
 
-const AudioPlayer = ({ src, duration, isSender, isHovered, onHover }) => {
-  const audioRef = useRef();
-  const [playing, setPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [muted, setMuted] = useState(false);
+const AudioPlayer = ({ audioSrc, duration, isSender }) => {
+  const audioRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -17,7 +15,11 @@ const AudioPlayer = ({ src, duration, isSender, isHovered, onHover }) => {
       setProgress((audio.currentTime / duration) * 100);
     };
 
-    const handleEnded = () => setPlaying(false);
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setCurrentTime(0);
+      setProgress(0);
+    };
 
     audio.addEventListener('timeupdate', updateProgress);
     audio.addEventListener('ended', handleEnded);
@@ -29,17 +31,12 @@ const AudioPlayer = ({ src, duration, isSender, isHovered, onHover }) => {
   }, [duration]);
 
   const togglePlay = () => {
-    if (playing) {
+    if (isPlaying) {
       audioRef.current.pause();
     } else {
       audioRef.current.play();
     }
-    setPlaying(!playing);
-  };
-
-  const toggleMute = () => {
-    audioRef.current.muted = !muted;
-    setMuted(!muted);
+    setIsPlaying(!isPlaying);
   };
 
   const formatTime = (seconds) => {
@@ -49,55 +46,35 @@ const AudioPlayer = ({ src, duration, isSender, isHovered, onHover }) => {
   };
 
   return (
-    <div
-      className={`relative group flex items-center gap-2 p-2 rounded-xl ${
-        isSender ? 'bg-green-100' : 'bg-white'
-      }`}
-      onMouseEnter={() => onHover(true)}
-      onMouseLeave={() => onHover(false)}
-    >
-      <audio ref={audioRef} src={src} preload="metadata" />
-      
+    <div className={`flex items-center gap-3 p-3 rounded-xl ${isSender ? 'bg-green-100' : 'bg-white'}`} style={{ minWidth: '250px' }}>
+      <audio ref={audioRef} src={audioSrc} preload="metadata" />
       <button
         onClick={togglePlay}
-        className="p-1 rounded-full bg-blue-500 text-white hover:bg-blue-600 transition"
+        className={`p-2 rounded-full ${isSender ? 'bg-green-500 hover:bg-green-600' : 'bg-blue-500 hover:bg-blue-600'} text-white transition-colors`}
       >
-        {playing ? (
-          <Pause size={16} className="min-w-4" />
+        {isPlaying ? (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
         ) : (
-          <Play size={16} className="min-w-4" />
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+          </svg>
         )}
       </button>
 
-      <div className="flex-1 flex items-center gap-2">
+      <div className="flex-1 flex flex-col gap-1">
         <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
           <div
-            className={`h-full ${isSender ? 'bg-green-500' : 'bg-blue-500'}`}
+            className={`h-full ${isSender ? 'bg-green-500' : 'bg-blue-500'} transition-all duration-100`}
             style={{ width: `${progress}%` }}
           />
         </div>
-        
-        <span className="text-xs text-gray-600 whitespace-nowrap">
-          {formatTime(playing ? currentTime : duration)}
-        </span>
+        <div className="flex justify-between text-xs text-gray-600">
+          <span>{formatTime(isPlaying ? currentTime : 0)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
       </div>
-
-      <button
-        onClick={toggleMute}
-        className="p-1 text-gray-500 hover:text-gray-700 transition"
-      >
-        {muted ? <VolumeX size={16} /> : <Volume2 size={16} />}
-      </button>
-
-      {(isHovered || isSender) && (
-        <span
-          className={`absolute -top-2 -right-2 text-xs px-2 py-1 rounded-full ${
-            isSender ? 'bg-green-200 text-green-800' : 'bg-gray-200 text-gray-800'
-          }`}
-        >
-          {duration}s
-        </span>
-      )}
     </div>
   );
 };
