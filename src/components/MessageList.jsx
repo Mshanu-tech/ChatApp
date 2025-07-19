@@ -57,6 +57,7 @@ const MessageList = ({ messages, userID, setReplyTo, handleContextMenu, setConte
             return (
               <div
                 key={i}
+                style={{marginBottom:"3%"}}
                 className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
                 onContextMenu={(e) => handleContextMenu(e, msg)}
               >

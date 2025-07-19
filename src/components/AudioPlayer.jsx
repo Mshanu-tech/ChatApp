@@ -46,7 +46,7 @@ const AudioPlayer = ({ audioSrc, duration, isSender }) => {
   };
 
   return (
-    <div className={`flex items-center gap-3 p-3 rounded-xl ${isSender ? 'bg-green-100' : 'bg-white'}`} style={{ minWidth: '250px' }}>
+    <div className={`flex items-center gap-3 p-3 rounded-xl ${isSender ? 'bg-green-100' : 'bg-white'}`} style={{ minWidth: '217px' }}>
       <audio ref={audioRef} src={audioSrc} preload="metadata" />
       <button
         onClick={togglePlay}

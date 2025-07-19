@@ -26,8 +26,22 @@ const Dashboard = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [audioChunks, setAudioChunks] = useState([]);
   const [recordingDuration, setRecordingDuration] = useState(0);
-const [contextMenu, setContextMenu] = useState(null);
-const [selectedMessage, setSelectedMessage] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+  const [showSidebar, setShowSidebar] = useState(false); // New state for mobile sidebar
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768); // Check if mobile view
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      if (window.innerWidth >= 768) {
+        setShowSidebar(false); // Always show sidebar on larger screens
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -105,6 +119,7 @@ const [selectedMessage, setSelectedMessage] = useState(null);
       if (accepted) {
         setChatWith(from);
         setChatName(fromName);
+        if (isMobile) setShowSidebar(false); // Hide sidebar on mobile when chat starts
       }
     });
 
@@ -125,23 +140,23 @@ const [selectedMessage, setSelectedMessage] = useState(null);
       });
       socket.disconnect();
     };
-  }, [userID]);
+  }, [userID, isMobile]);
 
   const handleSendMessage = (e) => {
-  e.preventDefault();
-  if (!message.trim() || !chatWith) return;
-  const newMsg = {
-    sender: userID,
-    receiver: chatWith,
-    message,
-    timestamp: new Date().toISOString(),
-    replyTo: replyTo ? {
-      message: replyTo?.message || null,
-      audio: replyTo?.audio || null,
-      duration: replyTo?.duration || 0,
-      emoji: replyTo?.emoji || null, // Include emoji in reply
-    } : null,
-  };
+    e.preventDefault();
+    if (!message.trim() || !chatWith) return;
+    const newMsg = {
+      sender: userID,
+      receiver: chatWith,
+      message,
+      timestamp: new Date().toISOString(),
+      replyTo: replyTo ? {
+        message: replyTo?.message || null,
+        audio: replyTo?.audio || null,
+        duration: replyTo?.duration || 0,
+        emoji: replyTo?.emoji || null,
+      } : null,
+    };
     socket.emit('send_message', newMsg);
     setLastMessages(prev => ({ ...prev, [chatWith]: newMsg }));
     setMessages(prev => [...prev, newMsg]);
@@ -225,105 +240,164 @@ const [selectedMessage, setSelectedMessage] = useState(null);
   };
 
   const handleContextMenu = (e, message) => {
-  e.preventDefault();
-  setSelectedMessage(message);
-  setContextMenu({
-    x: e.clientX,
-    y: e.clientY,
-  });
-};
-
+    e.preventDefault();
+    setSelectedMessage(message);
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+    });
+  };
 
   const handleReply = (message, emoji = null) => {
-  setReplyTo({
-    ...message,
-    emoji // Add emoji to reply if provided
-  });
-  setContextMenu(null); // Close the context menu
-};
+    setReplyTo({
+      ...message,
+      emoji
+    });
+    setContextMenu(null);
+  };
+
+  const toggleSidebar = () => {
+    setShowSidebar(!showSidebar);
+  };
 
   return (
-    <div className="flex h-screen font-sans">
-
-      {contextMenu && (
-  <div 
-    className="fixed bg-white shadow-lg rounded-md p-2 z-50"
-    style={{
-      top: contextMenu.y,
-      left: contextMenu.x,
-    }}
-    onClick={(e) => e.stopPropagation()}
-  >
-    <button 
-      onClick={() => handleReply(selectedMessage)}
-      className="flex items-center w-full px-3 py-1 hover:bg-gray-100 rounded"
-    >
-      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-      </svg>
-      Reply
-    </button>
-    <div className="flex space-x-1 mt-1">
-      {['👍', '❤️', '😂', '😮', '😢'].map((emoji) => (
-        <button
-          key={emoji}
-          onClick={() => handleReply(selectedMessage, emoji)}
-          className="text-xl hover:bg-gray-100 p-1 rounded"
-        >
-          {emoji}
-        </button>
-      ))}
-    </div>
-  </div>
-)}
-      <Sidebar 
-        userName={userName}
-        friends={friends}
-        onlineUsers={onlineUsers}
-        lastMessages={lastMessages}
-        userID={userID}
-        setChatWith={setChatWith}
-        setChatName={setChatName}
-        setMessages={setMessages}
+  <div className="flex h-screen font-sans bg-gray-100 overflow-hidden">
+    {/* Overlay for mobile when sidebar is open */}
+    {isMobile && showSidebar && (
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 z-40"
+        onClick={() => setShowSidebar(false)}
       />
+    )}
 
-      <main className="flex-1 flex flex-col">
-        <ChatHeader 
+    {/* Sidebar */}
+    <div className={`
+      ${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative'}
+      ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
+      ${!isMobile ? 'translate-x-0' : ''}
+      w-64 bg-white shadow-lg transition-transform duration-300 ease-in-out
+      flex flex-col h-full
+    `}>
+        <Sidebar
+          userName={userName}
+          friends={friends}
+          onlineUsers={onlineUsers}
+          lastMessages={lastMessages}
+          userID={userID}
+          setChatWith={(id, name) => {
+            setChatWith(id);
+            setChatName(name);
+            if (isMobile) setShowSidebar(false);
+          }}
+          setChatName={setChatName}
+          setMessages={setMessages}
+          onLogout={handleLogout}
+          isMobile={isMobile} // Boolean based on screen size
+          onClose={() => setShowSidebar(false)} // For mobile close functionality
+        />
+      </div>
+
+      {/* Main content area */}
+      <main className={`flex-1 flex flex-col ${isMobile && chatWith ? 'ml-0' : ''}`}>
+        {/* Mobile header with menu button */}
+        <ChatHeader
           chatName={chatName}
           chatWith={chatWith}
           userName={userName}
           navigate={navigate}
           handleLogout={handleLogout}
+          onMenuClick={toggleSidebar}
+          isMobile={isMobile}
         />
 
-  <MessageList 
-  messages={messages}
-  userID={userID}
-  setReplyTo={setReplyTo}
-  handleContextMenu={handleContextMenu} // Add this
-  setContextMenu={setContextMenu} // Add this
-/>
-        <MessageInput 
-          replyTo={replyTo}
-          setReplyTo={setReplyTo}
-          showEmojiPicker={showEmojiPicker}
-          setShowEmojiPicker={setShowEmojiPicker}
-          message={message}
-          setMessage={setMessage}
-          handleSendMessage={handleSendMessage}
-          isRecording={isRecording}
-          recordingDuration={recordingDuration}
-          startRecording={startRecording}
-          stopRecording={stopRecording}
-        />
+        {/* Empty state when no chat is selected on mobile */}
+        {isMobile && !chatWith && (
+          <div className="flex-1 flex flex-col items-center justify-center p-4 text-center bg-gray-50">
+            <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mb-4">
+              <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900">No chat selected</h3>
+            <p className="mt-1 text-sm text-gray-500">Select a conversation from the menu to start chatting</p>
+            <button
+              onClick={toggleSidebar}
+              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            >
+              Open contacts
+            </button>
+          </div>
+        )}
+
+        {/* Chat area (only shown when chat is selected on mobile) */}
+        {(!isMobile || chatWith) && (
+          <>
+            <MessageList
+              messages={messages}
+              userID={userID}
+              setReplyTo={setReplyTo}
+              handleContextMenu={handleContextMenu}
+              setContextMenu={setContextMenu}
+              isMobile={isMobile}
+            />
+            <MessageInput
+              replyTo={replyTo}
+              setReplyTo={setReplyTo}
+              showEmojiPicker={showEmojiPicker}
+              setShowEmojiPicker={setShowEmojiPicker}
+              message={message}
+              setMessage={setMessage}
+              handleSendMessage={handleSendMessage}
+              isRecording={isRecording}
+              recordingDuration={recordingDuration}
+              startRecording={startRecording}
+              stopRecording={stopRecording}
+              isMobile={isMobile}
+            />
+          </>
+        )}
       </main>
 
-      <ChatInvitePopup 
-        currentUserID={userID} 
+      {/* Context menu */}
+      {contextMenu && (
+        <div
+          className="fixed bg-white shadow-lg rounded-md p-2 z-50"
+          style={{
+            top: contextMenu.y,
+            left: contextMenu.x,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => handleReply(selectedMessage)}
+            className="flex items-center w-full px-3 py-1 hover:bg-gray-100 rounded"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+            </svg>
+            Reply
+          </button>
+          <div className="flex space-x-1 mt-1">
+            {['👍', '❤️', '😂', '😮', '😢'].map((emoji) => (
+              <button
+                key={emoji}
+                onClick={() => handleReply(selectedMessage, emoji)}
+                className="text-xl hover:bg-gray-100 p-1 rounded"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <ChatInvitePopup
+        currentUserID={userID}
         onConfirmChat={(id, name) => {
           setChatWith(id);
           setChatName(name);
-        }} 
+          if (isMobile) setShowSidebar(false);
+        }}
       />
     </div>
   );

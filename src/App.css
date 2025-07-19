@@ -1,0 +1,32 @@
+/* Mobile-specific styles */
+@media (max-width: 767px) {
+  /* Prevent scrolling when sidebar is open */
+  body.sidebar-open {
+    overflow: hidden;
+  }
+
+  /* Message list padding */
+  .message-list {
+    padding-bottom: 80px; /* Make space for input area */
+  }
+
+  /* Input area styling */
+  .message-input-area {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    padding: 10px;
+    border-top: 1px solid #e5e7eb;
+  }
+
+  /* Adjust emoji picker for mobile */
+  .emoji-picker-react {
+    position: fixed !important;
+    bottom: 60px !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+  }
+}
