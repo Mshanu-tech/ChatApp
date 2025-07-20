@@ -13,7 +13,7 @@ const InviteFriend = ({ currentUserID, currentUserName }) => {
       setError("Please enter a user ID");
       return;
     }
-    
+
     if (inviteID === currentUserID) {
       setError("You can't invite yourself");
       return;
@@ -25,15 +25,15 @@ const InviteFriend = ({ currentUserID, currentUserName }) => {
 
     try {
       // Emit the invite event
-      socket.emit("send_invite", { 
-        from: currentUserID, 
+      socket.emit("send_invite", {
+        from: currentUserID,
         fromName: currentUserName,
-        to: inviteID 
+        to: inviteID
       });
 
       setSuccess(`Invite sent to ${inviteID}`);
       setInviteID('');
-      
+
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
@@ -56,8 +56,8 @@ const InviteFriend = ({ currentUserID, currentUserName }) => {
         <FiUserPlus className="text-blue-600 text-xl" />
         <h3 className="font-medium text-gray-800">Invite a Friend</h3>
       </div>
-      
-      <div style={{display:"flex",flexDirection:"column"}} className="flex flex-col sm:flex-row gap-2 mb-2">
+
+      <div style={{ display: "flex", flexDirection: "column" }} className="flex flex-col sm:flex-row gap-2 mb-2">
         <input
           type="text"
           placeholder="Enter friend's User ID"
@@ -89,7 +89,7 @@ const InviteFriend = ({ currentUserID, currentUserName }) => {
           )}
         </button>
       </div>
-      
+
       {error && (
         <p className="text-red-500 text-xs sm:text-sm mt-1 flex items-center gap-1">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -98,7 +98,7 @@ const InviteFriend = ({ currentUserID, currentUserName }) => {
           {error}
         </p>
       )}
-      
+
       {success && (
         <p className="text-green-600 text-xs sm:text-sm mt-1 flex items-center gap-1">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,7 +107,7 @@ const InviteFriend = ({ currentUserID, currentUserName }) => {
           {success}
         </p>
       )}
-      
+
       <p className="text-xs text-gray-500 mt-2">
         Ask your friend for their unique user ID to connect with them.
       </p>

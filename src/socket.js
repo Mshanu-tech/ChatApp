@@ -1,4 +1,4 @@
 import { io } from 'socket.io-client';
-export const socket = io('https://chatappbackend-eg0b.onrender.com/', {
+export const socket = io('http://localhost:5000', {
   autoConnect: false,
 });

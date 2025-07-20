@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import InviteFriend from './InviteFriend';
 import axiosInstance from '../utils/axiosInstance';
+import { FiPlus, FiSearch } from 'react-icons/fi';
+import InvitePopup from './InvitePopup';
 
 const Sidebar = ({ 
   userName, 
@@ -16,6 +17,7 @@ const Sidebar = ({
   onClose
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [showInvitePopup, setShowInvitePopup] = useState(false);
 
   const filteredFriends = friends.filter(friend =>
     friend.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -50,7 +52,7 @@ const Sidebar = ({
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
       <div className="p-4 border-b flex justify-between items-center">
-        <h2 className="text-lg font-bold truncate">Welcome, {userName}</h2>
+        <h2 className="text-lg font-bold truncate">Welcome To Chat App</h2>
         {isMobile && (
           <button 
             onClick={onClose}
@@ -66,20 +68,29 @@ const Sidebar = ({
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto flex flex-col">
-        {/* Invite Friend Section */}
+        {/* Search Bar with Invite Button */}
         <div className="p-4 border-b">
-          <InviteFriend currentUserID={userID} currentUserName={userName} />
-        </div>
-
-        {/* Search */}
-        <div className="p-4 border-b">
-          <input
-            type="text"
-            placeholder="Search friends..."
-            className="w-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <FiSearch className="text-gray-400" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search friends..."
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <button 
+              onClick={() => setShowInvitePopup(true)}
+              className="p-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition"
+              aria-label="Invite friend"
+            >
+              <FiPlus className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Friends List */}
@@ -147,6 +158,15 @@ const Sidebar = ({
           Logout
         </button>
       </div>
+
+      {/* Invite Popup */}
+      {showInvitePopup && (
+        <InvitePopup 
+          currentUserID={userID} 
+          currentUserName={userName} 
+          onClose={() => setShowInvitePopup(false)}
+        />
+      )}
     </div>
   );
 };
