@@ -261,7 +261,7 @@
     };
 
     return (
-      <div className="flex h-screen font-sans bg-gray-100 overflow-hidden">
+      <div className="flex h-screen  font-sans bg-gray-100 overflow-hidden">
         {/* Overlay for mobile when sidebar is open */}
         {isMobile && showSidebar && (
           <div
@@ -272,11 +272,11 @@
 
         {/* Sidebar */}
         <div className={`
-        ${isMobile ? 'fixed inset-y-0 left-0 z-50' : 'relative'}
+        ${isMobile ? 'fixed inset-y-0 left-0 z-50 w-full' : 'relative'}
         ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
         ${!isMobile ? 'translate-x-0' : ''}
         w-64 bg-white shadow-lg transition-transform duration-300 ease-in-out
-        flex flex-col h-full
+        flex flex-col h-full 
       `}>
           <Sidebar
             userName={userName}
