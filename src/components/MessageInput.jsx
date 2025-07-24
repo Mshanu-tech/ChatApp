@@ -2,6 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import EmojiPicker from 'emoji-picker-react';
 import { FiPaperclip, FiX, FiImage, FiVideo, FiFile, FiMic, FiSend } from 'react-icons/fi';
 import axiosInstance from '../utils/axiosInstance';
+import axios from 'axios';
+import { formatFileSize, generateThumbnail, generateVideoThumbnail } from '../utils/fileUtils';
+import { supabase } from '../utils/supabaseClient';
 
 const MessageInput = ({
   replyTo,
@@ -66,18 +69,18 @@ const MessageInput = ({
   }, []);
 
   useEffect(() => {
-  if (socket) {
-    console.log("✅ Socket connected:", socket.connected);
+    if (socket) {
+      console.log("✅ Socket connected:", socket.connected);
 
-    socket.on("connect", () => {
-      console.log("🟢 Socket reconnected");
-    });
+      socket.on("connect", () => {
+        console.log("🟢 Socket reconnected");
+      });
 
-    socket.on("disconnect", () => {
-      console.warn("🔴 Socket disconnected");
-    });
-  }
-}, [socket]);
+      socket.on("disconnect", () => {
+        console.warn("🔴 Socket disconnected");
+      });
+    }
+  }, [socket]);
 
 
   const handleInputChange = (e) => {
@@ -99,44 +102,44 @@ const MessageInput = ({
     }
   };
 
-const processAndSendAudio = async (audioBlob, duration) => {
-  try {
-    const reader = new FileReader();
+  const processAndSendAudio = async (audioBlob, duration) => {
+    try {
+      const reader = new FileReader();
 
-    const base64Audio = await new Promise((resolve, reject) => {
-      reader.onloadend = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(audioBlob);
-    });
+      const base64Audio = await new Promise((resolve, reject) => {
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(audioBlob);
+      });
 
-    const audioMsg = {
-      sender: userID,
-      receiver: chatWith,
-      audio: base64Audio,
-      timestamp: new Date().toISOString(),
-      duration: duration,
-      replyTo: replyTo ? {
-        message: replyTo?.message || null,
-        audio: replyTo?.audio || null,
-        duration: replyTo?.duration || 0,
-      } : null,
-    };
+      const audioMsg = {
+        sender: userID,
+        receiver: chatWith,
+        audio: base64Audio,
+        timestamp: new Date().toISOString(),
+        duration: duration,
+        replyTo: replyTo ? {
+          message: replyTo?.message || null,
+          audio: replyTo?.audio || null,
+          duration: replyTo?.duration || 0,
+        } : null,
+      };
 
-    if (!socket || !socket.connected) {
-      console.warn('⚠️ Socket is not connected. Message not sent.');
+      if (!socket || !socket.connected) {
+        console.warn('⚠️ Socket is not connected. Message not sent.');
+        return false;
+      }
+
+      // socket.emit('voice_message', audioMsg);
+      // setMessages(prev => [...prev, { ...audioMsg, from: userID }]);
+      setLastMessages(prev => ({ ...prev, [chatWith]: audioMsg }));
+
+      return true;
+    } catch (error) {
+      console.error('Error processing audio:', error);
       return false;
     }
-
-    socket.emit('voice_message', audioMsg);
-    setMessages(prev => [...prev, { ...audioMsg, from: userID }]);
-    setLastMessages(prev => ({ ...prev, [chatWith]: audioMsg }));
-
-    return true;
-  } catch (error) {
-    console.error('Error processing audio:', error);
-    return false;
-  }
-};
+  };
 
 
   const handleStartRecording = async () => {
@@ -258,73 +261,92 @@ const processAndSendAudio = async (audioBlob, duration) => {
   };
 
 const sendFileMessage = async () => {
-  
   if (!fileToSend || !chatWith) return;
 
   try {
-    const formData = new FormData();
-    formData.append('file', fileToSend);
-    formData.append('sender', userID);
-    formData.append('receiver', chatWith);
-    formData.append('timestamp', new Date().toISOString());
-
-    if (replyTo) {
-      formData.append('replyTo', JSON.stringify({
-        message: replyTo?.message || null,
-        audio: replyTo?.audio || null,
-        duration: replyTo?.duration || 0,
-      }));
-    }
-
     setUploading(true);
 
-    const response = await axiosInstance.post('/api/auth/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    let uploadedUrl = '';
+    let resourceType = '';
+    let fileName = fileToSend.name;
+    let createdAt = new Date().toISOString();
 
-    if (response.status !== 200) throw new Error('Upload failed');
+    const isImageOrVideo = fileToSend.type.startsWith('image/') || fileToSend.type.startsWith('video/');
+    const isPdf = fileToSend.type === 'application/pdf';
 
-    const fileMsg = response.data;
+    // ✅ Sanitize filename helper
+    const sanitizeFilename = (name) =>
+      name.replace(/[^a-zA-Z0-9_.\-]/g, '_');
 
-    if (socket) {
-      // Emit the file message through Socket.IO      
-      socket.emit('file_message', {
-        sender: userID,
-        receiver: chatWith,
-        file: fileMsg.file,
-        fileType: fileMsg.fileType,
-        fileName: fileMsg.fileName,
-        timestamp: fileMsg.timestamp,
-        replyTo: fileMsg.replyTo
-      });
-      
-      // Update local state
-      setMessages(prev => [...prev, { 
-        from: userID,
-        file: fileMsg.file,
-        fileType: fileMsg.fileType,
-        fileName: fileMsg.fileName,
-        timestamp: fileMsg.timestamp,
-        replyTo: fileMsg.replyTo
-      }]);
-      
-      setLastMessages(prev => ({ 
-        ...prev, 
-        [chatWith]: { 
-          sender: userID, 
-          receiver: chatWith,
-          file: fileMsg.file,
-          fileType: fileMsg.fileType,
-          fileName: fileMsg.fileName,
-          timestamp: fileMsg.timestamp
-        } 
-      }));
+    if (isImageOrVideo) {
+      // ✅ Upload to Cloudinary
+      const formData = new FormData();
+      formData.append('file', fileToSend);
+      formData.append('upload_preset', 'chatapp_unsigned');
+      formData.append('folder', 'chatapp_files');
+
+      const cloudinaryRes = await axios.post(
+        'https://api.cloudinary.com/v1_1/dy1mqueya/auto/upload',
+        formData
+      );
+
+      uploadedUrl = cloudinaryRes.data.secure_url;
+      resourceType = cloudinaryRes.data.resource_type;
+      fileName = cloudinaryRes.data.original_filename;
+      createdAt = cloudinaryRes.data.created_at;
+
+    } else if (isPdf) {
+      // ✅ Upload to Supabase
+      const safeName = sanitizeFilename(fileToSend.name);
+      const filePath = `pdfs/${Date.now()}-${safeName}`;
+
+      const { data, error } = await supabase.storage
+        .from('pdf-files') // your bucket name
+        .upload(filePath, fileToSend);
+
+      if (error) throw error;
+
+      const { data: publicUrlData } = supabase.storage
+        .from('pdf-files')
+        .getPublicUrl(data.path);
+
+      uploadedUrl = publicUrlData.publicUrl;
+      resourceType = 'pdf';
+      fileName = safeName;
+    } else {
+      throw new Error('Unsupported file type');
     }
+
+    // ✅ Send metadata to backend
+    const payload = {
+      sender: userID,
+      receiver: chatWith,
+      file: uploadedUrl,
+      fileType: fileToSend.type,
+      fileName,
+      resourceType,
+      timestamp: createdAt,
+      replyTo: replyTo ? {
+        message: replyTo.message || null,
+        audio: replyTo.audio || null,
+        duration: replyTo.duration || 0
+      } : null
+    };
+
+    const saveRes = await axiosInstance.post('/api/files/save', payload);
+    const fileMsg = saveRes.data;
+
+    if (socket) socket.emit('file_message', fileMsg);
+
+    setMessages(prev => [...prev, { from: userID, ...fileMsg }]);
+    setLastMessages(prev => ({
+      ...prev,
+      [chatWith]: { sender: userID, receiver: chatWith, ...fileMsg }
+    }));
+
   } catch (error) {
-    console.error('Error uploading file:', error);
-    alert('File upload failed. Please try again.');
+    console.error('Upload error:', error.response?.data || error.message);
+    alert(error.response?.data?.error || 'Upload failed');
   } finally {
     setUploading(false);
     setFilePreview(null);
@@ -332,74 +354,13 @@ const sendFileMessage = async () => {
     setShowFilePreview(false);
   }
 };
+
+
+
   const cancelFileSend = () => {
     setFilePreview(null);
     setFileToSend(null);
     setShowFilePreview(false);
-  };
-
-  const generateThumbnail = (file) => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          const maxSize = 200;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > maxSize) {
-              height *= maxSize / width;
-              width = maxSize;
-            }
-          } else {
-            if (height > maxSize) {
-              width *= maxSize / height;
-              height = maxSize;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.7));
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const generateVideoThumbnail = (file) => {
-    return new Promise((resolve) => {
-      const video = document.createElement('video');
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-
-      video.src = URL.createObjectURL(file);
-      video.addEventListener('loadedmetadata', () => {
-        video.currentTime = Math.min(1, video.duration);
-      });
-
-      video.addEventListener('seeked', () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
-        URL.revokeObjectURL(video.src);
-      });
-    });
-  };
-
-  const formatFileSize = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]);
   };
 
   return (
@@ -568,8 +529,8 @@ const sendFileMessage = async () => {
             type="button"
             onClick={isRecording ? handleStopRecording : handleStartRecording}
             className={`p-2 rounded-full focus:outline-none ${isRecording
-                ? 'bg-red-500 text-white animate-pulse'
-                : 'text-blue-500 hover:bg-blue-100'
+              ? 'bg-red-500 text-white animate-pulse'
+              : 'text-blue-500 hover:bg-blue-100'
               }`}
             aria-label={isRecording ? 'Stop recording' : 'Start recording'}
           >
@@ -584,6 +545,18 @@ const sendFileMessage = async () => {
           </button>
         )}
       </form>
+      {uploading && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+    <div className="bg-white rounded-lg p-6 shadow-md flex flex-col items-center space-y-2">
+      <svg className="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+      </svg>
+      <p className="text-sm text-gray-700">Uploading file, please wait...</p>
+    </div>
+  </div>
+)}
+
     </div>
   );
 };
