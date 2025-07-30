@@ -1,11 +1,24 @@
 import { useState, useRef, useEffect } from 'react';
 import EmojiPicker from 'emoji-picker-react';
-import { FiPaperclip, FiX, FiImage, FiVideo, FiFile, FiMic, FiSend } from 'react-icons/fi';
-import axiosInstance from '../utils/axiosInstance';
-import axios from 'axios';
-import { formatFileSize, generateThumbnail, generateVideoThumbnail } from '../utils/fileUtils';
-import { supabase } from '../utils/supabaseClient';
+import {
+  FiPaperclip,
+  FiX,
+  FiImage,
+  FiVideo,
+  FiFile,
+  FiMic,
+  FiSend
+} from 'react-icons/fi';
+import {
+  generateThumbnail,
+  generateVideoThumbnail
+} from '../utils/fileUtils';
+import FilePreviewModal from './fileUpload/FilePreviewModal';
+import { handleFileUpload } from '../utils/fileUploadService';
 
+// ==============================================
+// COMPONENT PROPS
+// ==============================================
 const MessageInput = ({
   replyTo,
   setReplyTo,
@@ -15,7 +28,6 @@ const MessageInput = ({
   setMessage,
   handleSendMessage,
   isRecording,
-  recordingDuration,
   startRecording,
   stopRecording,
   isMobile,
@@ -25,19 +37,26 @@ const MessageInput = ({
   setLastMessages,
   socket
 }) => {
+  // ==============================================
+  // STATE & REFS
+  // ==============================================
   const [inputRows, setInputRows] = useState(1);
-  const inputRef = useRef(null);
-  const emojiPickerRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
-  const recordingIntervalRef = useRef(null);
-  const fileInputRef = useRef(null);
   const [localRecordingDuration, setLocalRecordingDuration] = useState(0);
   const [filePreview, setFilePreview] = useState(null);
   const [fileToSend, setFileToSend] = useState(null);
   const [showFilePreview, setShowFilePreview] = useState(false);
   const [showAttachmentOptions, setShowAttachmentOptions] = useState(false);
   const [uploading, setUploading] = useState(false);
+
+  const inputRef = useRef(null);
+  const emojiPickerRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const recordingIntervalRef = useRef(null);
+
+  // ==============================================
+  // EFFECTS
+  // ==============================================
   // Handle click outside to close emoji picker and attachment options
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -68,6 +87,7 @@ const MessageInput = ({
     };
   }, []);
 
+  // Socket connection monitoring
   useEffect(() => {
     if (socket) {
       console.log("✅ Socket connected:", socket.connected);
@@ -82,17 +102,13 @@ const MessageInput = ({
     }
   }, [socket]);
 
-
+  // ==============================================
+  // INPUT HANDLERS
+  // ==============================================
   const handleInputChange = (e) => {
     setMessage(e.target.value);
     const rows = Math.min(Math.max(e.target.value.split('\n').length, 4));
     setInputRows(rows);
-  };
-
-  const onEmojiClick = (emojiData) => {
-    setMessage(prev => prev + emojiData.emoji);
-    setShowEmojiPicker(false);
-    inputRef.current.focus();
   };
 
   const handleKeyDown = (e) => {
@@ -102,6 +118,18 @@ const MessageInput = ({
     }
   };
 
+  // ==============================================
+  // EMOJI HANDLERS
+  // ==============================================
+  const onEmojiClick = (emojiData) => {
+    setMessage(prev => prev + emojiData.emoji);
+    setShowEmojiPicker(false);
+    inputRef.current.focus();
+  };
+
+  // ==============================================
+  // AUDIO RECORDING HANDLERS
+  // ==============================================
   const processAndSendAudio = async (audioBlob, duration) => {
     try {
       const reader = new FileReader();
@@ -130,17 +158,13 @@ const MessageInput = ({
         return false;
       }
 
-      // socket.emit('voice_message', audioMsg);
-      // setMessages(prev => [...prev, { ...audioMsg, from: userID }]);
       setLastMessages(prev => ({ ...prev, [chatWith]: audioMsg }));
-
       return true;
     } catch (error) {
       console.error('Error processing audio:', error);
       return false;
     }
   };
-
 
   const handleStartRecording = async () => {
     try {
@@ -197,6 +221,9 @@ const MessageInput = ({
     }
   };
 
+  // ==============================================
+  // FILE HANDLERS
+  // ==============================================
   const handleFileInput = (type) => {
     setShowAttachmentOptions(false);
     const input = document.createElement('input');
@@ -260,102 +287,64 @@ const MessageInput = ({
     input.click();
   };
 
-const sendFileMessage = async () => {
-  if (!fileToSend || !chatWith) return;
+  // Then update the sendFileMessage function:
+  const sendFileMessage = async () => {
+    if (!fileToSend || !chatWith) return;
 
-  try {
-    setUploading(true);
+    try {
+      setUploading(true);
 
-    let uploadedUrl = '';
-    let resourceType = '';
-    let fileName = fileToSend.name;
-    let createdAt = new Date().toISOString();
+      // Use the file upload service
+      const { url, resourceType, fileName, createdAt } = await handleFileUpload(fileToSend);
 
-    const isImageOrVideo = fileToSend.type.startsWith('image/') || fileToSend.type.startsWith('video/');
-    const isPdf = fileToSend.type === 'application/pdf';
+      // Send metadata to backend
+      const payload = {
+        sender: userID,
+        receiver: chatWith,
+        file: url,
+        fileType: fileToSend.type,
+        fileName,
+        resourceType,
+        timestamp: createdAt,
+        replyTo: replyTo ? {
+          message: replyTo.message || null,
+          audio: replyTo.audio || null,
+          fileType: replyTo.fileType || null,
+          _id: replyTo._id || null,
+        } : null
+      };
 
-    // ✅ Sanitize filename helper
-    const sanitizeFilename = (name) =>
-      name.replace(/[^a-zA-Z0-9_.\-]/g, '_');
+      if (socket) {
+        socket.emit('file_message', payload, (response) => {
+          if (response?.status === 'ok') {
+            const savedFileMsg = response.data;
 
-    if (isImageOrVideo) {
-      // ✅ Upload to Cloudinary
-      const formData = new FormData();
-      formData.append('file', fileToSend);
-      formData.append('upload_preset', 'chatapp_unsigned');
-      formData.append('folder', 'chatapp_files');
+            setMessages(prev => [...prev, { from: userID, ...savedFileMsg }]);
+            setLastMessages(prev => ({
+              ...prev,
+              [chatWith]: {
+                sender: userID,
+                receiver: chatWith,
+                ...savedFileMsg
+              }
+            }));
+          } else {
+            console.error('Failed to send file message:', response?.error);
+            alert('File message failed to send');
+          }
+        });
+      }
 
-      const cloudinaryRes = await axios.post(
-        'https://api.cloudinary.com/v1_1/dy1mqueya/auto/upload',
-        formData
-      );
-
-      uploadedUrl = cloudinaryRes.data.secure_url;
-      resourceType = cloudinaryRes.data.resource_type;
-      fileName = cloudinaryRes.data.original_filename;
-      createdAt = cloudinaryRes.data.created_at;
-
-    } else if (isPdf) {
-      // ✅ Upload to Supabase
-      const safeName = sanitizeFilename(fileToSend.name);
-      const filePath = `pdfs/${Date.now()}-${safeName}`;
-
-      const { data, error } = await supabase.storage
-        .from('pdf-files') // your bucket name
-        .upload(filePath, fileToSend);
-
-      if (error) throw error;
-
-      const { data: publicUrlData } = supabase.storage
-        .from('pdf-files')
-        .getPublicUrl(data.path);
-
-      uploadedUrl = publicUrlData.publicUrl;
-      resourceType = 'pdf';
-      fileName = safeName;
-    } else {
-      throw new Error('Unsupported file type');
+    } catch (error) {
+      console.error('Upload error:', error.response?.data || error.message);
+      alert(error.response?.data?.error || 'Upload failed');
+    } finally {
+      setUploading(false);
+      setFilePreview(null);
+      setFileToSend(null);
+      setShowFilePreview(false);
     }
-
-    // ✅ Send metadata to backend
-    const payload = {
-      sender: userID,
-      receiver: chatWith,
-      file: uploadedUrl,
-      fileType: fileToSend.type,
-      fileName,
-      resourceType,
-      timestamp: createdAt,
-      replyTo: replyTo ? {
-        message: replyTo.message || null,
-        audio: replyTo.audio || null,
-        duration: replyTo.duration || 0
-      } : null
-    };
-
-    const saveRes = await axiosInstance.post('/api/files/save', payload);
-    const fileMsg = saveRes.data;
-
-    if (socket) socket.emit('file_message', fileMsg);
-
-    setMessages(prev => [...prev, { from: userID, ...fileMsg }]);
-    setLastMessages(prev => ({
-      ...prev,
-      [chatWith]: { sender: userID, receiver: chatWith, ...fileMsg }
-    }));
-
-  } catch (error) {
-    console.error('Upload error:', error.response?.data || error.message);
-    alert(error.response?.data?.error || 'Upload failed');
-  } finally {
-    setUploading(false);
-    setFilePreview(null);
-    setFileToSend(null);
-    setShowFilePreview(false);
-  }
-};
-
-
+  };
 
   const cancelFileSend = () => {
     setFilePreview(null);
@@ -363,8 +352,12 @@ const sendFileMessage = async () => {
     setShowFilePreview(false);
   };
 
+  // ==============================================
+  // RENDER
+  // ==============================================
   return (
     <div className={`bg-white border-t border-gray-200 p-3 ${isMobile ? 'fixed bottom-0 left-0 right-0' : ''}`}>
+      {/* Reply Preview */}
       {replyTo && (
         <div className="bg-blue-50 border-l-4 border-blue-400 p-2 mb-2 rounded-r flex justify-between items-start">
           <div className="text-sm text-gray-700 truncate max-w-[80%]">
@@ -381,63 +374,18 @@ const sendFileMessage = async () => {
         </div>
       )}
 
+      {/* File Preview Modal */}
       {showFilePreview && filePreview && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full max-h-[90vh] overflow-auto">
-            <div className="p-4 border-b flex justify-between items-center">
-              <h3 className="font-medium">Send File</h3>
-              <button onClick={cancelFileSend} className="text-gray-500 hover:text-gray-700">
-                <FiX className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4">
-              {filePreview.type === 'image' && (
-                <img
-                  src={filePreview.url}
-                  alt="Preview"
-                  className="max-w-full max-h-64 mx-auto rounded-md"
-                />
-              )}
-
-              {filePreview.type === 'video' && (
-                <video
-                  controls
-                  className="max-w-full max-h-64 mx-auto rounded-md"
-                  src={filePreview.url}
-                />
-              )}
-
-              {(filePreview.type === 'document' || filePreview.type === 'pdf') && (
-                <div className="flex flex-col items-center justify-center p-6">
-                  <FiFile className="text-blue-500 w-16 h-16 mb-4" />
-                  <p className="text-lg font-medium text-center">{filePreview.fileName}</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    {formatFileSize(filePreview.fileSize)}
-                  </p>
-                </div>
-              )}
-
-              <div className="mt-4 flex justify-between">
-                <button
-                  onClick={cancelFileSend}
-                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={sendFileMessage}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
-                >
-                  Send
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <FilePreviewModal
+          filePreview={filePreview}
+          onCancel={cancelFileSend}
+          onSend={sendFileMessage}
+        />
       )}
 
+      {/* Main Input Form */}
       <form onSubmit={handleSendMessage} className="flex items-end space-x-2 relative">
+        {/* Emoji Picker Button */}
         <button
           type="button"
           onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -449,6 +397,7 @@ const sendFileMessage = async () => {
           </svg>
         </button>
 
+        {/* Emoji Picker */}
         {showEmojiPicker && (
           <div
             ref={emojiPickerRef}
@@ -463,6 +412,7 @@ const sendFileMessage = async () => {
           </div>
         )}
 
+        {/* Message Input */}
         <div className="flex-1 bg-gray-100 rounded-full flex items-center">
           <input
             ref={inputRef}
@@ -476,6 +426,7 @@ const sendFileMessage = async () => {
           />
         </div>
 
+        {/* Attachment Button */}
         <div className="relative">
           <button
             type="button"
@@ -486,6 +437,7 @@ const sendFileMessage = async () => {
             <FiPaperclip className="w-5 h-5" />
           </button>
 
+          {/* Attachment Options */}
           {showAttachmentOptions && (
             <div className="absolute bottom-12 right-0 bg-white shadow-lg rounded-lg p-2 w-48 z-10 attachment-container">
               <button
@@ -516,6 +468,7 @@ const sendFileMessage = async () => {
           )}
         </div>
 
+        {/* Send/Record Button */}
         {message.trim() ? (
           <button
             type="submit"
@@ -545,18 +498,19 @@ const sendFileMessage = async () => {
           </button>
         )}
       </form>
-      {uploading && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-    <div className="bg-white rounded-lg p-6 shadow-md flex flex-col items-center space-y-2">
-      <svg className="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-      </svg>
-      <p className="text-sm text-gray-700">Uploading file, please wait...</p>
-    </div>
-  </div>
-)}
 
+      {/* Uploading Indicator */}
+      {uploading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="bg-white rounded-lg p-6 shadow-md flex flex-col items-center space-y-2">
+            <svg className="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            <p className="text-sm text-gray-700">Uploading file, please wait...</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

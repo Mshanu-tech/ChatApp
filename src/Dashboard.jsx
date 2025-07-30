@@ -7,7 +7,6 @@ import Sidebar from './components/Sidebar';
 import ChatHeader from './components/ChatHeader';
 import MessageList from './components/MessageList';
 import MessageInput from './components/MessageInput';
-import ChatInvitePopup from './components/ChatInvitePopup';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -30,6 +29,7 @@ const Dashboard = () => {
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [showSidebar, setShowSidebar] = useState(window.innerWidth < 768);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768); // Check if mobile view
+  console.log("replyTo", replyTo);
 
   useEffect(() => {
     const handleResize = () => {
@@ -106,12 +106,12 @@ const Dashboard = () => {
       }
     }
 
-    socket.off('receive_message').on('receive_message', ({ from, message, audio, timestamp, duration, replyTo }) => {
-      const newMsg = { from, message, audio, timestamp, duration, replyTo };
+    socket.off('receive_message').on('receive_message', ({ from, message, audio, timestamp, duration, replyTo, _id }) => {
+      const newMsg = { from, message, audio, timestamp, duration, replyTo, _id };
       setMessages(prev => [...prev, newMsg]);
       setLastMessages(prev => ({
         ...prev,
-        [from]: { sender: from, receiver: userID, message, audio, timestamp }
+        [from]: { sender: from, receiver: userID, message, audio, timestamp, _id }
       }));
     });
 
@@ -123,14 +123,24 @@ const Dashboard = () => {
       }
     });
 
-    socket.off('voice_message').on('voice_message', ({ from, audio, timestamp, duration, replyTo }) => {
-      const newMsg = { from, audio, timestamp, duration, replyTo };
+    socket.off('voice_message').on('voice_message', ({ from, audio, timestamp, duration, replyTo, _id }) => {
+      const newMsg = { from, audio, timestamp, duration, replyTo, _id };
+
       setMessages(prev => [...prev, newMsg]);
+
       setLastMessages(prev => ({
         ...prev,
-        [from]: { sender: from, receiver: userID, audio, timestamp, duration }
+        [from]: {
+          sender: from,
+          receiver: userID,
+          audio,
+          timestamp,
+          duration,
+          _id
+        }
       }));
     });
+
 
     return () => {
       socket.off('receive_message');
@@ -147,24 +157,31 @@ const Dashboard = () => {
     if (socket) {
       // Handle incoming file messages
       socket.on('receive_file_message', (fileMsg) => {
-        setMessages(prev => [...prev, {
-          from: fileMsg.sender,
-          file: fileMsg.file,
-          fileType: fileMsg.fileType,
-          fileName: fileMsg.fileName,
-          timestamp: fileMsg.timestamp,
-          replyTo: fileMsg.replyTo
-        }]);
+        setMessages(prev => [
+          ...prev,
+          {
+            _id: fileMsg._id,
+            from: fileMsg.sender,
+            to: fileMsg.receiver,
+            file: fileMsg.file,
+            fileType: fileMsg.fileType,
+            fileName: fileMsg.fileName,
+            timestamp: fileMsg.timestamp,
+            replyTo: fileMsg.replyTo
+          }
+        ]);
 
         setLastMessages(prev => ({
           ...prev,
           [fileMsg.sender]: {
+            _id: fileMsg._id,
             sender: fileMsg.sender,
-            receiver: userID,
+            receiver: fileMsg.receiver,
             file: fileMsg.file,
             fileType: fileMsg.fileType,
             fileName: fileMsg.fileName,
-            timestamp: fileMsg.timestamp
+            timestamp: fileMsg.timestamp,
+            replyTo: fileMsg.replyTo || null
           }
         }));
       });
@@ -181,27 +198,40 @@ const Dashboard = () => {
     }
   }, [socket, userID]);
 
+
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!message.trim() || !chatWith) return;
+
     const newMsg = {
       sender: userID,
       receiver: chatWith,
       message,
       timestamp: new Date().toISOString(),
       replyTo: replyTo ? {
-        message: replyTo?.message || null,
-        audio: replyTo?.audio || null,
-        duration: replyTo?.duration || 0,
-        emoji: replyTo?.emoji || null,
-      } : null,
+        message: replyTo.message || null,
+        audio: replyTo.audio || null,
+        fileType: replyTo.fileType || null,
+        _id: replyTo._id || null,
+      } : null
     };
-    socket.emit('send_message', newMsg);
-    setLastMessages(prev => ({ ...prev, [chatWith]: newMsg }));
-    setMessages(prev => [...prev, newMsg]);
+
+    socket.emit('send_message', newMsg, (res) => {
+      if (res.status === 'ok') {
+        const savedMsg = res.data;
+        console.log("savedMsg", savedMsg);
+
+        setMessages((prev) => [...prev, savedMsg]); // ✅ Use actual saved message from DB
+        setLastMessages((prev) => ({ ...prev, [chatWith]: savedMsg }));
+      } else {
+        console.error('Failed to send message:', res.error);
+      }
+    });
+
     setMessage('');
     setReplyTo(null);
   };
+
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -218,57 +248,80 @@ const Dashboard = () => {
       setMediaRecorder(recorder);
       setIsRecording(true);
       setRecordingDuration(0);
-      const chunks = [];
 
+      const chunks = [];
       const startTime = Date.now();
+
       const timer = setInterval(() => {
         setRecordingDuration(Math.floor((Date.now() - startTime) / 1000));
       }, 1000);
 
       recorder.ondataavailable = (e) => {
-        chunks.push(e.data);
-        setAudioChunks([...chunks]);
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
       };
 
       recorder.onstop = async () => {
         clearInterval(timer);
+
         const endTime = Date.now();
         const actualDuration = Math.floor((endTime - startTime) / 1000);
-
         const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);
+
         reader.onloadend = () => {
           const base64Audio = reader.result;
+
           const audioMsg = {
             sender: userID,
             receiver: chatWith,
             audio: base64Audio,
             timestamp: new Date().toISOString(),
             duration: actualDuration,
-            replyTo: replyTo?.message || replyTo?.audio ? {
-              message: replyTo?.message || null,
-              audio: replyTo?.audio || null,
-              duration: replyTo?.duration || 0,
-            } : null,
+            text: 'how are you',    // ✅ Text you want to send
+            replyTo: replyTo?.message || replyTo?.audio
+              ? {
+                message: replyTo?.message || null,
+                audio: replyTo?.audio || null,
+                duration: replyTo?.duration || 0,
+              }
+              : null,
           };
 
-          socket.emit('voice_message', audioMsg);
-          setMessages(prev => [...prev, { ...audioMsg, from: userID }]);
-          setLastMessages(prev => ({ ...prev, [chatWith]: audioMsg }));
+          // Emit with callback to confirm status
+          socket.emit('voice_message', audioMsg, (response) => {
+            if (response?.status === 'ok') {
+              const savedMsg = response.data;
+              console.log(savedMsg);
+
+              setMessages(prev => [...prev, { ...savedMsg, from: userID }]);
+              setLastMessages(prev => ({ ...prev, [chatWith]: savedMsg }));
+            } else {
+              console.error('Failed to send voice message:', response?.error);
+            }
+          });
+
           setReplyTo(null);
         };
 
+        // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
+        setIsRecording(false);
+        setMediaRecorder(null);
       };
 
-      recorder.start(100);
+      recorder.start(100); // Collect audio in small chunks
     } catch (err) {
       console.error('Error accessing microphone:', err);
       setIsRecording(false);
       setRecordingDuration(0);
+      setMediaRecorder(null);
     }
   };
+
 
   const stopRecording = () => {
     if (mediaRecorder) {
@@ -288,6 +341,7 @@ const Dashboard = () => {
   };
 
   const handleReply = (message, emoji = null) => {
+    console.log(message);
     setReplyTo({
       ...message,
       emoji
@@ -310,32 +364,32 @@ const Dashboard = () => {
       )}
 
       {/* Sidebar */}
-<div className={`
+      <div className={`
   ${isMobile ? 'fixed inset-y-0 left-0 z-50 w-full' : 'relative'}
   ${showSidebar ? 'translate-x-0' : '-translate-x-full'}
   ${!isMobile ? 'translate-x-0' : ''}
   w-[375px] bg-white shadow-lg transition-transform duration-300 ease-in-out
   flex flex-col h-full 
 `}>
-  <Sidebar
-    userName={userName}
-    friends={friends}
-    onlineUsers={onlineUsers}
-    lastMessages={lastMessages}
-    userID={userID}
-    setChatWith={(id, name) => {
-      setChatWith(id);
-      setChatName(name);
-      if (isMobile) setShowSidebar(false);
-    }}
-    setChatName={setChatName}
-    setMessages={setMessages}
-    isMobile={isMobile}
-    navigate={navigate}
-    handleLogout={handleLogout}
-    onClose={() => setShowSidebar(false)}
-  />
-</div>
+        <Sidebar
+          userName={userName}
+          friends={friends}
+          onlineUsers={onlineUsers}
+          lastMessages={lastMessages}
+          userID={userID}
+          setChatWith={(id, name) => {
+            setChatWith(id);
+            setChatName(name);
+            if (isMobile) setShowSidebar(false);
+          }}
+          setChatName={setChatName}
+          setMessages={setMessages}
+          isMobile={isMobile}
+          navigate={navigate}
+          handleLogout={handleLogout}
+          onClose={() => setShowSidebar(false)}
+        />
+      </div>
 
 
       {/* Main content area */}
@@ -346,6 +400,7 @@ const Dashboard = () => {
           chatWith={chatWith}
           userName={userName}
           navigate={navigate}
+          userID={userID}
           handleLogout={handleLogout}
           onMenuClick={toggleSidebar}
           isMobile={isMobile}
@@ -404,28 +459,8 @@ const Dashboard = () => {
             </svg>
             Reply
           </button>
-          <div className="flex space-x-1 mt-1">
-            {['👍', '❤️', '😂', '😮', '😢'].map((emoji) => (
-              <button
-                key={emoji}
-                onClick={() => handleReply(selectedMessage, emoji)}
-                className="text-xl hover:bg-gray-100 p-1 rounded"
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
         </div>
       )}
-
-      <ChatInvitePopup
-        currentUserID={userID}
-        onConfirmChat={(id, name) => {
-          setChatWith(id);
-          setChatName(name);
-          if (isMobile) setShowSidebar(false);
-        }}
-      />
     </div>
   );
 };

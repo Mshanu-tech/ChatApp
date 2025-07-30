@@ -29,6 +29,8 @@ const formatDateLabel = (timestamp) => {
 };
 
 const MessageList = ({ messages, userID, setReplyTo, handleContextMenu, setContextMenu }) => {
+  console.log(messages);
+
   const [expandedMedia, setExpandedMedia] = useState(null);
   const groupedMessages = {};
 
@@ -45,84 +47,111 @@ const MessageList = ({ messages, userID, setReplyTo, handleContextMenu, setConte
     setExpandedMedia(`${dateLabel}-${msgIndex}`);
   };
 
-  return (
-    <div
-      id="chat-messages"
-      className="flex-1 p-4 overflow-auto bg-gray-100 space-y-3"
-      onClick={() => setContextMenu(null)}
-    >
-      {Object.entries(groupedMessages).map(([dateLabel, group]) => (
-        <div key={dateLabel}>
-          <div className="text-center my-2 text-xs text-gray-600 bg-gray-200 px-2 py-1 rounded-full w-fit mx-auto">
-            {dateLabel}
-          </div>
-          {group.map((msg, i) => {
-            const isMe = msg.sender === userID || msg.from === userID;
-            const time = new Date(msg.timestamp).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit'
-            });
-            const onlyEmoji = msg.message && /^[\p{Emoji}\s]+$/u.test(msg.message);
-            const mediaKey = `${dateLabel}-${i}`;
-            const isExpanded = expandedMedia === mediaKey;
+return (
+  <div
+    id="chat-messages"
+    className="flex-1 p-4 overflow-auto bg-gray-100 space-y-3"
+    onClick={() => setContextMenu(null)}
+  >
+    {Object.entries(groupedMessages).map(([dateLabel, group]) => (
+      <div key={dateLabel}>
+        <div className="text-center my-2 text-xs text-gray-600 bg-gray-200 px-2 py-1 rounded-full w-fit mx-auto">
+          {dateLabel}
+        </div>
 
-            return (
+        {group.map((msg, i) => {
+          const isMe = msg.sender === userID || msg.from === userID;
+          const time = new Date(msg.timestamp).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          const onlyEmoji = msg.message && /^[\p{Emoji}\s]+$/u.test(msg.message);
+          const mediaKey = `${dateLabel}-${i}`;
+          const isExpanded = expandedMedia === mediaKey;
+          const msgId = msg._id || `fallback-${i}`;
+
+          return (
+            <div
+              key={msgId}
+              id={`msg-${msgId}`} // ✅ Needed for scroll-to-reply
+              style={{ marginBottom: '3%' }}
+              className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+              onContextMenu={(e) => handleContextMenu(e, msg)}
+            >
               <div
-                key={i}
-                style={{ marginBottom: "3%" }}
-                className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
-                onContextMenu={(e) => handleContextMenu(e, msg)}
+                className={`max-w-[85%] p-3 rounded-lg shadow ${
+                  isMe ? 'bg-green-200 rounded-br-none' : 'bg-white rounded-bl-none'
+                }`}
               >
-                <div
-                  className={`max-w-[85%] p-3 rounded-lg shadow ${isMe ? 'bg-green-200 rounded-br-none' : 'bg-white rounded-bl-none'}`}
-                >
-                  {msg.replyTo && (
+                {/* REPLY MESSAGE PREVIEW */}
+                {msg.replyTo && (
+                  <div
+                    onClick={() => {
+                      const replyId = msg.replyTo._id;
+                      const el = document.getElementById(`msg-${replyId}`);
+                      if (el) {
+                        el.classList.add('ring-2', 'ring-blue-400', 'rounded-lg', 'transition');
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        setTimeout(() => {
+                          el.classList.remove('ring-2', 'ring-blue-400', 'rounded-lg', 'transition');
+                        }, 2000);
+                      }
+                    }}
+                    className="cursor-pointer"
+                  >
                     <div className="bg-gray-200 px-2 py-1 rounded mb-2 border-l-4 border-blue-400">
-                      <div className="flex items-center">
-                        {msg.replyTo.emoji && (
-                          <span className="text-xl mr-1">{msg.replyTo.emoji}</span>
-                        )}
-                        {msg.replyTo.message && (
-                          <em className="text-xs">Reply: "{msg.replyTo.message}"</em>
-                        )}
-                        {msg.replyTo.audio && (
-                          <em className="text-xs">Reply: 🎤 Voice</em>
-                        )}
+                      <div className="flex items-center gap-1 text-xs text-gray-700">
+                        {msg.replyTo.emoji && <span className="text-xl">{msg.replyTo.emoji}</span>}
+                        {msg.replyTo.message && <em>Reply: "{msg.replyTo.message}"</em>}
+                        {msg.replyTo.fileType?.startsWith('image/') && <em>Reply: Image</em>}
+                        {msg.replyTo.fileType?.startsWith('video/') && <em>Reply: Video</em>}
+                        {msg.replyTo.fileType === 'application/pdf' && <em>Reply: Pdf</em>}
+                        {msg.replyTo.audio && <em>Reply: 🎤 Voice</em>}
                       </div>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {msg.message && (
-                    <div className={`${onlyEmoji ? 'text-4xl' : 'text-sm'} whitespace-pre-wrap`}>
-                      {msg.message}
-                    </div>
-                  )}
+                {/* TEXT MESSAGE */}
+                {msg.message && (
+                  <div className={`${onlyEmoji ? 'text-4xl' : 'text-sm'} whitespace-pre-wrap`}>
+                    {msg.message}
+                  </div>
+                )}
 
-                  {msg.audio && (
-                    <AudioPlayer audioSrc={msg.audio} duration={msg.duration} isSender={isMe} />
-                  )}
+                {/* AUDIO */}
+                {msg.audio && (
+                  <AudioPlayer
+                    audioSrc={msg.audio}
+                    duration={msg.duration}
+                    isSender={isMe}
+                  />
+                )}
 
-                  {msg.file && (
-                    <div className="mt-2">
-                      <FileMessage
-                        msg={msg}
-                        mediaKey={mediaKey}
-                        isExpanded={isExpanded}
-                        handleMediaClick={handleMediaClick}
-                        setExpandedMedia={setExpandedMedia}
-                      />
-                    </div>
-                  )}
+                {/* FILE / MEDIA */}
+                {msg.file && (
+                  <div className="mt-2">
+                    <FileMessage
+                      msg={msg}
+                      mediaKey={mediaKey}
+                      isExpanded={isExpanded}
+                      handleMediaClick={handleMediaClick}
+                      setExpandedMedia={setExpandedMedia}
+                    />
+                  </div>
+                )}
 
-                  <div className="text-[10px] text-gray-500 text-right mt-1">{time}</div>
-                </div>
+                {/* TIME STAMP */}
+                <div className="text-[10px] text-gray-500 text-right mt-1">{time}</div>
               </div>
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
+            </div>
+          );
+        })}
+      </div>
+    ))}
+  </div>
+);
+
 };
 
 export default MessageList;
