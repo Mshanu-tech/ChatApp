@@ -7,6 +7,7 @@ import Sidebar from './components/Sidebar';
 import ChatHeader from './components/ChatHeader';
 import MessageList from './components/MessageList';
 import MessageInput from './components/MessageInput';
+import Profile from './Profile';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -352,6 +353,7 @@ const Dashboard = () => {
   const toggleSidebar = () => {
     setShowSidebar(!showSidebar);
   };
+<Profile />
 
   return (
     <div className="flex h-screen  font-sans bg-gray-100 overflow-hidden">

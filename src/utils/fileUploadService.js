@@ -5,11 +5,12 @@ import { supabase } from './supabaseClient';
 // Sanitize filename helper
 const sanitizeFilename = (name) => name.replace(/[^a-zA-Z0-9_.\-]/g, '_');
 
-export const uploadFileToCloudinary = async (file) => {
+// utils/fileUploadService.js
+export const uploadFileToCloudinary = async (file, folder = 'chatapp_files') => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', 'chatapp_unsigned');
-  formData.append('folder', 'chatapp_files');
+  formData.append('folder', folder); // now configurable
 
   const response = await axios.post(
     'https://api.cloudinary.com/v1_1/dy1mqueya/auto/upload',
@@ -20,7 +21,7 @@ export const uploadFileToCloudinary = async (file) => {
     url: response.data.secure_url,
     resourceType: response.data.resource_type,
     fileName: response.data.original_filename,
-    createdAt: response.data.created_at
+    createdAt: response.data.created_at,
   };
 };
 
