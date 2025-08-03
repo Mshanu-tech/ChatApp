@@ -356,7 +356,7 @@ const MessageInput = ({
   // RENDER
   // ==============================================
   return (
-    <div className={`bg-white border-t border-gray-200 p-3 ${isMobile ? 'fixed bottom-0 left-0 right-0' : ''}`}>
+    <div className={`bg-white border-t border-gray-200 p-3 ${isMobile ? 'fixed bottom-0 left-0 right-0 z-10' : ''}`}>
       {/* Reply Preview */}
       {replyTo && (
         <div className="bg-blue-50 border-l-4 border-blue-400 p-2 mb-2 rounded-r flex justify-between items-start">
@@ -384,7 +384,7 @@ const MessageInput = ({
       )}
 
       {/* Main Input Form */}
-      <form onSubmit={handleSendMessage} className="flex items-end space-x-2 relative">
+      <form onSubmit={handleSendMessage} className="flex items-end space-x-2 relative flex-wrap">
         {/* Emoji Picker Button */}
         <button
           type="button"
@@ -413,7 +413,7 @@ const MessageInput = ({
         )}
 
         {/* Message Input */}
-        <div className="flex-1 bg-gray-100 rounded-full flex items-center">
+        <div className="flex-1 bg-gray-100 rounded-full flex items-center min-w-0">
           <input
             ref={inputRef}
             value={message}

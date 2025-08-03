@@ -15,6 +15,7 @@ const Dashboard = () => {
   const [userName, setUserName] = useState(null);
   const [chatWith, setChatWith] = useState(null);
   const [chatName, setChatName] = useState(null);
+  const [chatPicture, setChatPicture] = useState(null);
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState([]);
   const [onlineUsers, setOnlineUsers] = useState([]);
@@ -100,6 +101,7 @@ const Dashboard = () => {
         if (friend) {
           setChatWith(friend.userID);
           setChatName(friend.name);
+          setChatPicture(friend.picture)
           setMessages(savedMessages || []);
         }
       } catch (err) {
@@ -353,7 +355,7 @@ const Dashboard = () => {
   const toggleSidebar = () => {
     setShowSidebar(!showSidebar);
   };
-<Profile />
+  <Profile />
 
   return (
     <div className="flex h-screen  font-sans bg-gray-100 overflow-hidden">
@@ -406,6 +408,7 @@ const Dashboard = () => {
           handleLogout={handleLogout}
           onMenuClick={toggleSidebar}
           isMobile={isMobile}
+          picture={chatPicture}
         />
 
         {/* Chat area (only shown when chat is selected on mobile) */}
